@@ -1,6 +1,8 @@
 var renderer, scene, camera, ww, wh, particles, geometry, material;
 var flag = false, play = false;
 
+var mouseIsPressed, mouseCoordinates, drawingSolid;
+
 ww = window.innerWidth,
 wh = window.innerHeight;
 
@@ -64,10 +66,53 @@ var drawParticles = function() {
 	}
 	particles = new THREE.Points(geometry, material);
 
-	scene.add(particles);
+	sceneParticles.add(particles);
 
 	requestAnimationFrame(render);
 };
+
+var getMouseCoordinates = function(){
+    var mouse = new THREE.Vector3();
+    mouse.set(
+        ( event.clientX / window.innerWidth ) * 2 - 1,
+        - ( event.clientY / window.innerHeight ) * 2 + 1,
+        0.5 );
+    mouse.unproject(camera);
+    mouse.sub(camera.position).normalize();
+    var distance = (-200 - camera.position.z) / mouse.z;
+
+    mouseCoordinates = new THREE.Vector3();
+    mouseCoordinates.copy(camera.position).add(mouse.multiplyScalar(distance));
+}
+
+var createSolidLine = function(){
+    var lineGeometry = new THREE.Geometry();
+    lineGeometry.vertices.push(mouseCoordinates);
+    var lineMaterial = new THREE.LineBasicMaterial();
+    var solidLine = new THREE.Line( lineGeometry, lineMaterial );
+    sceneDraw.add(solidLine);
+    drawingSolid = solidLine;
+}
+
+var continueSolidLine = function(){
+    var solidLine = drawingSolid;
+    var newLineGeometry = new THREE.Geometry();
+    newLineGeometry.vertices = solidLine.geometry.vertices;
+    newLineGeometry.vertices.push(mouseCoordinates);
+    solidLine.geometry = newLineGeometry;
+}
+
+var mousePressed = function(){
+    createSolidLine();
+}
+
+var mouseDragged = function(){
+    continueSolidLine();
+}
+
+var mouseReleased = function(){
+
+}
 
 var init = function() {
 	var WIDTH = window.innerWidth,
@@ -81,7 +126,7 @@ var init = function() {
 
     renderer = new THREE.WebGLRenderer();
     camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
-    scene = new THREE.Scene();
+    sceneParticles = new THREE.Scene();
     camera.position.z = 300;
 
     renderer.setSize(WIDTH, HEIGHT);
@@ -94,8 +139,29 @@ var init = function() {
     });
     
     //   window.addEventListener('resize', onResize, false);
+
+    // second scene, allow user to draw
+    sceneDraw = new THREE.Scene();
+    mouseIsPressed = false;
+
+    renderer.domElement.addEventListener('mousedown', function (){
+        getMouseCoordinates();
+        mouseIsPressed = true;
+        mousePressed();
+    });
+    renderer.domElement.addEventListener('mousemove', function(){
+        getMouseCoordinates();
+        if(mouseIsPressed){
+            mouseDragged();
+        }
+    });
+    renderer.domElement.addEventListener ( 'mouseup', function () { 
+		mouseIsPressed = false; 
+		mouseReleased(); 
+	});
     
 };
+
 var onResize = function(){
     ww = window.innerWidth;
 	wh = window.innerHeight;
@@ -116,7 +182,12 @@ var render = function(a) {
 
     particles.geometry.verticesNeedUpdate = true;
     // particles.rotation.y -= 0.01;
-	renderer.render(scene, camera);
+    renderer.render(sceneParticles, camera);
+    
+    if(drawingSolid){
+        renderer.autoClear = false;
+        renderer.render(sceneDraw, camera);
+    }
 };
 
 init();
