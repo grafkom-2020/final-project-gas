@@ -1,193 +1,157 @@
-var renderer, scene, camera, ww, wh, particles, geometry, material;
-var flag = false, play = false;
+var renderer, scene, camera, stats;
 
-var mouseIsPressed, mouseCoordinates, drawingSolid;
+var particleSystem, uniforms, geometry;
 
-ww = window.innerWidth,
-wh = window.innerHeight;
+var particles;
 
-var centerVector = new THREE.Vector3(0, 0, 0);
-var previousTime = 0;
+var image, imgdata, imgw, imgh;
 
-var getImageData = function(image) {
+var destination = [];
+var speed = [];
 
-	var canvas = document.createElement("canvas");
-	canvas.width = image.width;
-    canvas.height = image.height;
-    console.log("image " + image);
+init();
 
-	var ctx = canvas.getContext("2d");
-	ctx.drawImage(image, 0, 0);
+async function init() {
+    
+    camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 10000 );
+    camera.position.z = 300;
 
-	imgdata = ctx.getImageData(0, 0, image.width, image.height);
-    var pixels = imgdata.data;
+    scene = new THREE.Scene();
+    
+    uniforms = {
+        
+        pointTexture: { value: new THREE.TextureLoader().load( "./assets/spark1.png" ) },
+        uDepth: {value: 2.0}
+        
+    };
+    
+    var shaderMaterial = new THREE.ShaderMaterial( {
+        
+        uniforms: uniforms,
+        vertexShader: document.getElementById( 'vertexshader' ).textContent,
+        fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
+        
+        blending: THREE.AdditiveBlending,
+        depthTest: false,
+        transparent: true,
+        vertexColors: true
+        
+    } );
+    
+    const promise = new Promise(resolve => {
+        image = new Image();
+        image.onload = function() {
+            
+            var canvas = document.createElement("canvas");
+            var ctx = canvas.getContext("2d");
+            imgw = image.width / 4;
+            imgh = image.height / 4;
+            ctx.drawImage(image, 0, 0, imgw, imgh);
+            imgdata = ctx.getImageData(0, 0, imgw, imgh);
+            console.log(imgdata.width + " " + imgdata.height);
+            resolve();
+            var pixels = imgdata.data;
+        
+            for (var i = 0, n = pixels.length; i < n; i += 4) {
+                var grayscale = 0.21 * pixels[i] + 0.71 * pixels[i+1] + 0.07 * pixels[1+2]; //Math.floor((pixels[i] + pixels[i+1] + pixels[i+2]) / 3);
+                pixels[i  ] = grayscale;        // red
+                pixels[i+1] = grayscale;        // green
+                pixels[i+2] = grayscale;        // blue
+            }
+        }
+        image.src = "./assets/doggo.jpg";
 
-    for (var i = 0, n = pixels.length; i < n; i += 4) {
-        var grayscale = 0.21 * pixels[i] + 0.71 * pixels[i+1] + 0.07 * pixels[i+2]; //Math.floor((pixels[i] + pixels[i+1] + pixels[i+2]) / 3);
-        pixels[i  ] = grayscale;        // red
-        pixels[i+1] = grayscale;        // green
-        pixels[i+2] = grayscale;        // blue
-    }
+    })
+    await promise;
+    var radius = 200;
+    
+    geometry = new THREE.BufferGeometry();
+    
+    var positions = [];
+    var colors = [];
+    var sizes = [];
 
-    return imgdata;
-}
+    particles = imgdata.height * imgdata.width;
+    var color = new THREE.Color();
+    for (var y = 0, y2 = imgdata.height; y < y2; y += 1) {
+		for (var x = 0, x2 = imgdata.width; x < x2; x += 1) {
+			if (imgdata.data[(x * 4 + y * 4 * imgdata.width)] > 128) {
+                positions.push(Math.random() * 1000 - 500);
+                positions.push(Math.random() * 1000 - 500);
+                positions.push(-Math.random() * 500);
 
-var drawParticles = function() {
+                destination.push(x - imgdata.width / 2);
+                destination.push(-y + imgdata.height / 3);
+                destination.push((Math.random() * 2 - 1)* 10);
 
-    var texture = new THREE.TextureLoader().load("./assets/spark1.png");
-	geometry = new THREE.Geometry();
-	material = new THREE.PointsMaterial({
-		size: 3,
-		color: 0x313742,
-        sizeAttenuation: false,
-        map: texture
-	});
-	for (var y = 0, y2 = imagedata.height; y < y2; y += 2) {
-		for (var x = 0, x2 = imagedata.width; x < x2; x += 2) {
-			if (imagedata.data[(x * 4 + y * 4 * imagedata.width)] > 128) {
+                speed.push(Math.random() / 10 + 0.05);
 
-				var vertex = new THREE.Vector3();
-				vertex.x = Math.random() * 1000 - 500;
-				vertex.y = Math.random() * 1000 - 500;
-				vertex.z = -Math.random() * 500;
-
-				vertex.destination = {
-					x: x - imagedata.width / 2,
-					y: -y + imagedata.height / 2,
-					z: 0
-				};
-
-				vertex.speed = Math.random() / 200 + 0.015;
-
-                geometry.vertices.push(vertex);
-                geometry.colors.push(0x00ffff);
+                color.setHex(0xFFFFFF);
+        
+                colors.push(color.r, color.g, color.b);
+                
+                sizes.push( Math.random() * 5 + 5 );
+                
 			}
 		}
 	}
-	particles = new THREE.Points(geometry, material);
-
-	sceneParticles.add(particles);
-
-	requestAnimationFrame(render);
-};
-
-var getMouseCoordinates = function(){
-    var mouse = new THREE.Vector3();
-    mouse.set(
-        ( event.clientX / window.innerWidth ) * 2 - 1,
-        - ( event.clientY / window.innerHeight ) * 2 + 1,
-        0.5 );
-    mouse.unproject(camera);
-    mouse.sub(camera.position).normalize();
-    var distance = (-200 - camera.position.z) / mouse.z;
-
-    mouseCoordinates = new THREE.Vector3();
-    mouseCoordinates.copy(camera.position).add(mouse.multiplyScalar(distance));
-}
-
-var createSolidLine = function(){
-    var lineGeometry = new THREE.Geometry();
-    lineGeometry.vertices.push(mouseCoordinates);
-    var lineMaterial = new THREE.LineBasicMaterial();
-    var solidLine = new THREE.Line( lineGeometry, lineMaterial );
-    sceneDraw.add(solidLine);
-    drawingSolid = solidLine;
-}
-
-var continueSolidLine = function(){
-    var solidLine = drawingSolid;
-    var newLineGeometry = new THREE.Geometry();
-    newLineGeometry.vertices = solidLine.geometry.vertices;
-    newLineGeometry.vertices.push(mouseCoordinates);
-    solidLine.geometry = newLineGeometry;
-}
-
-var mousePressed = function(){
-    createSolidLine();
-}
-
-var mouseDragged = function(){
-    continueSolidLine();
-}
-
-var mouseReleased = function(){
-
-}
-
-var init = function() {
-	var WIDTH = window.innerWidth,
-    HEIGHT = window.innerHeight;
-
-    // set some camera attributes
-    var VIEW_ANGLE = 75,
-    ASPECT = WIDTH / HEIGHT,
-    NEAR = 0.1,
-    FAR = 1000;
-
+    
+    geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
+    geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
+    geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
+    
+    particleSystem = new THREE.Points( geometry, shaderMaterial );
+    
+    scene.add( particleSystem );
+    
     renderer = new THREE.WebGLRenderer();
-    camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
-    sceneParticles = new THREE.Scene();
-    camera.position.z = 300;
-
-    renderer.setSize(WIDTH, HEIGHT);
-    document.body.appendChild(renderer.domElement);
-
-	texture = THREE.ImageUtils.loadTexture("./assets/img1.jpg", undefined, function() {
-        console.log("t " + texture.image);
-		imagedata = getImageData(texture.image);
-		drawParticles();
-    });
+    renderer.setPixelRatio( window.devicePixelRatio );
+    renderer.setSize( window.innerWidth, window.innerHeight );
     
-    //   window.addEventListener('resize', onResize, false);
-
-    // second scene, allow user to draw
-    sceneDraw = new THREE.Scene();
-    mouseIsPressed = false;
-
-    renderer.domElement.addEventListener('mousedown', function (){
-        getMouseCoordinates();
-        mouseIsPressed = true;
-        mousePressed();
-    });
-    renderer.domElement.addEventListener('mousemove', function(){
-        getMouseCoordinates();
-        if(mouseIsPressed){
-            mouseDragged();
-        }
-    });
-    renderer.domElement.addEventListener ( 'mouseup', function () { 
-		mouseIsPressed = false; 
-		mouseReleased(); 
-	});
+    var container = document.getElementById( 'container' );
+    container.appendChild( renderer.domElement );
     
-};
+    window.addEventListener( 'resize', onWindowResize, false );
+    animate();
+}
 
-var onResize = function(){
-    ww = window.innerWidth;
-	wh = window.innerHeight;
-	renderer.setSize(ww, wh);
-    camera.aspect = ww / wh;
+function onWindowResize() {
+    
+    camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-};
-
-var render = function(a) {
     
-    requestAnimationFrame(render);
-    for (var i = 0, j = particles.geometry.vertices.length; i < j; i++) {
-        var particle = particles.geometry.vertices[i];
-        particle.x += (particle.destination.x - particle.x) * particle.speed;
-        particle.y += (particle.destination.y - particle.y) * particle.speed;
-        particle.z += (particle.destination.z - particle.z) * particle.speed;
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    
+}
+
+function animate() {
+    
+    requestAnimationFrame( animate );
+    
+    render();
+}
+
+function render() {
+    
+    var time = Date.now() * 0.001;
+    
+    var sizes = geometry.attributes.size.array;
+    for ( var i = 0; i < particles; i ++ ) {
+        
+        sizes[ i ] = 5 * ( 1 + Math.sin( 0.1 * i + time ) ) + 5;
     }
 
-    particles.geometry.verticesNeedUpdate = true;
-    // particles.rotation.y -= 0.01;
-    renderer.render(sceneParticles, camera);
-    
-    if(drawingSolid){
-        renderer.autoClear = false;
-        renderer.render(sceneDraw, camera);
+    // console.log(destination);
+    var particle = geometry.attributes.position.array;
+    var speedidx = 0;
+    for ( var i = 0; i < particles; i += 3 ) {
+        particle[ i ] += (destination[i] - particle[i]) * speed[speedidx];
+        particle[ i+1 ] += (destination[i+1] - particle[i+1]) * speed[speedidx];
+        particle[ i+2 ] += (destination[i+2] - particle[i+2]) * speed[speedidx];
+        speedidx++;
     }
-};
-
-init();
+    
+    geometry.attributes.size.needsUpdate = true;
+    geometry.attributes.position.needsUpdate = true; 
+    renderer.render( scene, camera );
+}

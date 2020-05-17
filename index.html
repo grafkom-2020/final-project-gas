@@ -1,19 +1,60 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <title>Particles</title>
-  <style>
-    body{
-      margin: 0px;
-    }
-    canvas{
-      width: 100%;
-      height: 100%;
-    }
-  </style>
-</head>
-<body>
-  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/104/three.js"></script>
-  <script type="text/javascript" src="main.js"></script>
+<html lang="en">
+	<head>
+		<title>Final Project Grafkom [gas]</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="main.css">
+	</head>
+	<body>
+		<div id="container"></div>
+		<script type="x-shader/x-vertex" id="vertexshader">
+
+			attribute float size;
+
+            uniform float uDepth;
+
+			varying vec3 vColor;
+
+            float random(float n) {
+                return fract(sin(n) * 43758.5453123);
+            }
+			void main() {
+
+				vColor = color;
+
+                // displacement
+                vec3 displaced = position;
+                // randomise
+                displaced.xy += vec2(random(position.x) - 0.5, random(position.x + 1.0) - 0.5);
+                
+                vec4 mvPosition = modelViewMatrix * vec4( displaced, 1.0 );
+				gl_PointSize = size * ( 300.0 / -mvPosition.z );
+
+				gl_Position = projectionMatrix * mvPosition;
+
+			}
+
+		</script>
+
+		<script type="x-shader/x-fragment" id="fragmentshader">
+
+			uniform sampler2D pointTexture;
+
+			varying vec3 vColor;
+
+			void main() {
+
+				gl_FragColor = vec4( vColor, 1.0 );
+
+				gl_FragColor = gl_FragColor * texture2D( pointTexture, gl_PointCoord );
+
+			}
+
+        </script>
+        
+        <script type="text/javascript" src="three.js"></script>
+        <script type="text/javascript" src="main.js"></script>
+
 </body>
 </html>
