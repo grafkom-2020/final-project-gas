@@ -8,9 +8,11 @@
 	</head>
 	<body>
 
-		<input type="file" id="real-file"  hidden="hidden"/> 
-		<button type="button" id="custom-button">CHOOSE A FILE</button>
+		<input type="file" id="real-file"  hidden="hidden" accept="image/*"/> 
+		<button type="button" id="custom-button">Click Here to Upload Your Image</button>
 		<span id="custom-text">No file chosen, yet.</span>
+		<!-- <label for="submit-btn" class="btn">Convert to Particles</label> -->
+		<input type="submit" id="submit-btn" hidden="hidden" value="Convert to Particles">
 
 		<div id="container"></div>
 		<script type="x-shader/x-vertex" id="vertexshader">

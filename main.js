@@ -4,43 +4,51 @@ var particleSystem, uniforms, geometry, shaderMaterial;
 
 var particles;
 
-var image, imgdata, imgw, imgh;
+var image, imgdata, imgw, imgh, imgsrc;
 
 var destination = [];
 var speed = [];
 
-var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingSolid, drawingPoint, rainbow;
+var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingSolid, drawingPoint, rainbow, offset;
 
+var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingBasic, drawingPoint;
+var realFileBtn, customBtn, customTxt, submitBtn;
+var renderflag = false;
 var gui, parameters;
-
-function getParticleTexture() {
-    var partCanvas = document.createElement('canvas');
-    var context = partCanvas.getContext('2d');
-    // Gradient untuk gradiasi warna per partikel
-    var gradient = context.createRadialGradient(
-        partCanvas.width / 2, 
-        partCanvas.height / 2, 
-        0, 
-        partCanvas.width / 2, 
-        partCanvas.height / 2, 
-        partCanvas.width / 2
-    );
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.1, 'rgba(0,0,255,1)');
-    gradient.addColorStop(0.15, 'rgba(0,200,128,1)');
-    gradient.addColorStop(0.2, 'rgba(0,0,0,0)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0)');
-
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, partCanvas.width, partCanvas.height);
-
-    return new THREE.CanvasTexture(partCanvas);
-}
-
 init();
 
 async function init() {
+
+    // image load buttons
+    realFileBtn = document.getElementById("real-file");
+    customBtn = document.getElementById("custom-button");
+    customTxt = document.getElementById("custom-text");
+    submitBtn = document.getElementById("submit-btn");
+
+    offset = customBtn.getBoundingClientRect().height;
+
+    customBtn.addEventListener("click", function() {
+        realFileBtn.click();
+    });
+
+    realFileBtn.addEventListener("change", function() {
+        if (realFileBtn.value) {
+            customTxt.innerHTML = realFileBtn.value.match(
+            /[\/\\]([\w\d\s\.\-\(\)]+)$/
+            )[1];
+            submitBtn.style.display = "inline";
+        } else {
+            customTxt.innerHTML = "No file chosen, yet.";
+            submitBtn.style.display = "none";
+        }
+
+    });
+
+    submitBtn.addEventListener("click", function(){
+        drawImageParticles();
+    });
     
+    // basic three init
     camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 10000 );
     camera.position.z = 300;
 
@@ -49,7 +57,6 @@ async function init() {
     uniforms = {
         
         pointTexture: { value: new THREE.TextureLoader().load( "./assets/spark1.png" ) },
-        // pointTexture: { value: getParticleTexture() },
         uDepth: {value: 2.0}
         
     };
@@ -66,86 +73,10 @@ async function init() {
         vertexColors: true
         
     } );
-    
-    var threshold = 0;
-    // f is ration/constant of real image to particle/pixelized version
-    var f = 1; 
-    const promise = new Promise(resolve => {
-        image = new Image();
-        image.onload = function() {
-            
-            f = Math.floor(image.height / 180.0);
-            var canvas = document.createElement("canvas");
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            var ctx = canvas.getContext("2d");
 
-            imgw = image.width / f;
-            imgh = image.height / f;
-            ctx.drawImage(image, 0, 0, imgw, imgh);
-            imgdata = ctx.getImageData(0, 0, imgw, imgh);
-            var pixels = imgdata.data;
-            
-            for (var i = 0, n = pixels.length; i < n; i += 4) {
-                // Skip pixels, only process pixels that needs to be processed
-                var grayscale = 0.21 * pixels[i] + 0.71 * pixels[i+1] + 0.07 * pixels[1+2];
-                pixels[i  ] = grayscale;        // red
-                pixels[i+1] = grayscale;        // green
-                pixels[i+2] = grayscale;        // blue
-                threshold += pixels[i];
-            }
-            resolve();
-        }
-        // image.src = "./assets/uno.jpg";
-        // image.src = "./assets/uno small.jpg";
-        // image.src = "./assets/doggo.jpg";
-        image.src = "./assets/doggo1.jpg";
-        // image.src = "./assets/doggo2.jpg";
+    const prom = new Promise(resolve => {drawImageParticles(); resolve()});
+    await prom;
 
-    })
-    await promise;
-
-    geometry = new THREE.BufferGeometry();
-    
-    var positions = [];
-    var colors = [];
-    var sizes = [];
-    
-    particles = imgdata.height * imgdata.width;
-    // console.log(imgdata.height, imgdata.width, imgdata.height*imgdata.width);
-    threshold /= particles;
-    threshold *= 1.35;
-    var color = new THREE.Color();
-    for (var y = 0, y2 = imgdata.height; y < y2; y += 1) {
-        for (var x = 0, x2 = imgdata.width; x < x2; x += 1) {
-            if (imgdata.data[(x * 4 + y * 4 * imgdata.width)] > threshold) {
-                positions.push(Math.random() * 1000 - 500);
-                positions.push(Math.random() * 1000 - 500);
-                positions.push(-Math.random() * 500);
-
-                destination.push(x - imgdata.width / 2);
-                destination.push(-y + imgdata.height / 2);
-                destination.push((Math.random() * 2 - 1)* 10);
-
-                speed.push(Math.random() / 10 + 0.05);
-
-                color.setHex(0xFFFFFF);
-        
-                colors.push(color.r, color.g, color.b);
-                
-                sizes.push( Math.random() * 5 + 5 );
-                
-			}
-		}
-	}
-    geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
-    geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
-    geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
-    
-    particleSystem = new THREE.Points( geometry, shaderMaterial );
-    
-    sceneParticles.add( particleSystem );
-    
     renderer = new THREE.WebGLRenderer();
     renderer.setPixelRatio( window.devicePixelRatio );
     renderer.setSize( window.innerWidth, window.innerHeight );
@@ -154,7 +85,6 @@ async function init() {
     container.appendChild( renderer.domElement );
     
     window.addEventListener( 'resize', onWindowResize, false );
-    animate();
 
     // second scene, allow user to draw
     sceneDraw = new THREE.Scene();
@@ -175,6 +105,7 @@ async function init() {
 		mouseIsPressed = false; 
 		mouseReleased(); 
 	});
+
     // UI BOX
     gui = new dat.GUI();
     parameters = {
@@ -266,7 +197,6 @@ function createLinePoint(){
             color.setHex(lineColor.replace("#", "0x"));
             colors.push(color.r, color.g, color.b);
         } 
-        
         sizes.push( Math.random() * 10 + 10 );
         
 	}
@@ -284,7 +214,7 @@ function getMouseCoordinates(){
     var mouse = new THREE.Vector3();
     mouse.set(
         ( event.clientX / window.innerWidth ) * 2 - 1,
-        - ( event.clientY / window.innerHeight ) * 2 + 1,
+        - ( (event.clientY - offset) / window.innerHeight ) * 2 + 1,
         0.5 );
     mouse.unproject(camera);
     mouse.sub(camera.position).normalize();
@@ -327,13 +257,12 @@ function onWindowResize() {
 }
 
 function animate() {
-    
     requestAnimationFrame( animate );
     render();
 }
 
 function render() {
-    
+    renderflag = true;
     var time = Date.now() * 0.001;
     
     var sizes = geometry.attributes.size.array;
@@ -372,23 +301,97 @@ function render() {
     }
 }
 
-//Input Picture
-const realFileBtn = document.getElementById("real-file");
-const customBtn = document.getElementById("custom-button");
-const customTxt = document.getElementById("custom-text");
+async function drawImageParticles(){
+    if(sceneParticles.getObjectByName("particleSystem")) sceneParticles.remove(sceneParticles.getObjectByName("particleSystem"));
+    var threshold = 0;
+    // f is ration/constant of real image to particle/pixelized version
+    var f = 1; 
+    var promises = [];
+    var p1 = new Promise(resolve => {
+        image = new Image();
+        if(realFileBtn.value)
+            image.src = URL.createObjectURL(realFileBtn.files[0]);
+        else
+            // image.src = "./assets/uno.jpg";
+            // image.src = "./assets/uno small.jpg";
+            // image.src = "./assets/doggo.jpg";
+            image.src = "./assets/doggo1.jpg";
+            // image.src = "./assets/doggo2.jpg";
+        image.onload = function() {
+            
+            f = Math.floor(image.height / 180.0);
+            if(document.getElementById("canvas")) document.getElementById("canvas").remove();
+            var canvas = document.createElement("canvas");
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            var ctx = canvas.getContext("2d");
 
-customBtn.addEventListener("click", function() {
-    realFileBtn.click();
-});
+            imgw = image.width / f;
+            imgh = image.height / f;
+            ctx.drawImage(image, 0, 0, imgw, imgh);
+            imgdata = ctx.getImageData(0, 0, imgw, imgh);
+            var pixels = imgdata.data;
+            
+            for (var i = 0, n = pixels.length; i < n; i += 4) {
+                // Skip pixels, only process pixels that needs to be processed
+                var grayscale = 0.21 * pixels[i] + 0.71 * pixels[i+1] + 0.07 * pixels[1+2];
+                pixels[i  ] = grayscale;        // red
+                pixels[i+1] = grayscale;        // green
+                pixels[i+2] = grayscale;        // blue
+                threshold += pixels[i];
+            }
+            resolve();
+        }
 
-realFileBtn.addEventListener("change", function() {
-    if (realFileBtn.value) {
-        customTxt.innerHTML = realFileBtn.value.match(
-        /[\/\\]([\w\d\s\.\-\(\)]+)$/
-        )[1];
-        getImg('DIV1');
-    } else {
-        customTxt.innerHTML = "No file chosen, yet.";
-    }
+    })
+    await p1;
 
-});
+    var p2 = new Promise(resolve => {
+        geometry = new THREE.BufferGeometry();
+        
+        var positions = [];
+        var colors = [];
+        var sizes = [];
+        destination = [];
+        speed = [];
+        
+        particles = imgdata.height * imgdata.width;
+        threshold /= particles;
+        threshold *= 1.35;
+        var color = new THREE.Color();
+        for (var y = 0, y2 = imgdata.height; y < y2; y += 1) {
+            for (var x = 0, x2 = imgdata.width; x < x2; x += 1) {
+                if (imgdata.data[(x * 4 + y * 4 * imgdata.width)] >= threshold) {
+                    positions.push(Math.random() * 1000 - 500);
+                    positions.push(Math.random() * 1000 - 500);
+                    positions.push(-Math.random() * 500);
+    
+                    destination.push(x - imgdata.width / 2);
+                    destination.push(-y + imgdata.height / 2);
+                    destination.push((Math.random() * 2 - 1)* 10);
+    
+                    speed.push(Math.random() / 10 + 0.05);
+    
+                    color.setHex(0xFFFFFF);
+            
+                    colors.push(color.r, color.g, color.b);
+                    
+                    sizes.push( Math.random() * 5 + 5 );
+                    
+                }
+            }
+        }
+        geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
+        geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
+        geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
+        
+        particleSystem = new THREE.Points( geometry, shaderMaterial );
+        particleSystem.name = "particleSystem";
+        
+        sceneParticles.add( particleSystem );
+        resolve();
+    })
+
+    await p2;
+    if(!renderflag)animate();
+}
