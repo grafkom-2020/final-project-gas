@@ -112,7 +112,7 @@ async function init() {
     var sizes = [];
     
     particles = imgdata.height * imgdata.width;
-    console.log(imgdata.height, imgdata.width, imgdata.height*imgdata.width);
+    // console.log(imgdata.height, imgdata.width, imgdata.height*imgdata.width);
     threshold /= particles;
     threshold *= 1.35;
     var color = new THREE.Color();
@@ -143,7 +143,6 @@ async function init() {
     geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
     
     particleSystem = new THREE.Points( geometry, shaderMaterial );
-    console.log(geometry);
     
     sceneParticles.add( particleSystem );
     
@@ -348,3 +347,24 @@ function render() {
 
     }
 }
+
+//Input Picture
+const realFileBtn = document.getElementById("real-file");
+const customBtn = document.getElementById("custom-button");
+const customTxt = document.getElementById("custom-text");
+
+customBtn.addEventListener("click", function() {
+    realFileBtn.click();
+});
+
+realFileBtn.addEventListener("change", function() {
+    if (realFileBtn.value) {
+        customTxt.innerHTML = realFileBtn.value.match(
+        /[\/\\]([\w\d\s\.\-\(\)]+)$/
+        )[1];
+        getImg('DIV1');
+    } else {
+        customTxt.innerHTML = "No file chosen, yet.";
+    }
+
+});
