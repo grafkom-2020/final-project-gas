@@ -1,6 +1,6 @@
 var renderer, sceneParticles, sceneDraw, camera, stats;
 
-var particleSystem, uniforms, geometry;
+var particleSystem, uniforms, geometry, shaderMaterial;
 
 var particles;
 
@@ -46,13 +46,13 @@ async function init() {
     
     uniforms = {
         
-        // pointTexture: { value: new THREE.TextureLoader().load( "./assets/spark1.png" ) },
-        pointTexture: { value: getParticleTexture() },
+        pointTexture: { value: new THREE.TextureLoader().load( "./assets/spark1.png" ) },
+        // pointTexture: { value: getParticleTexture() },
         uDepth: {value: 2.0}
         
     };
     
-    var shaderMaterial = new THREE.ShaderMaterial( {
+    shaderMaterial = new THREE.ShaderMaterial( {
         
         uniforms: uniforms,
         vertexShader: document.getElementById( 'vertexshader' ).textContent,
@@ -113,11 +113,9 @@ async function init() {
     console.log(imgdata.height, imgdata.width, imgdata.height*imgdata.width);
     threshold /= particles;
     threshold *= 1.35;
-    // console.log(threshold);
     var color = new THREE.Color();
     for (var y = 0, y2 = imgdata.height; y < y2; y += 1) {
         for (var x = 0, x2 = imgdata.width; x < x2; x += 1) {
-        // for (var y = imgdata.height; y >= 0; y -= 1) {
             if (imgdata.data[(x * 4 + y * 4 * imgdata.width)] > threshold) {
                 positions.push(Math.random() * 1000 - 500);
                 positions.push(Math.random() * 1000 - 500);
@@ -138,7 +136,6 @@ async function init() {
 			}
 		}
 	}
-    // console.log(imgdata.width + " " + imgdata.height + " " + positions.length + " " + destination.length);
     geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
     geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
     geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
@@ -188,6 +185,47 @@ function drawSetup(){
     });
 }
 
+//
+function createLine(){
+    var lineGeometry = new THREE.BufferGeometry();
+    
+    var positions = [];
+    var colors = [];
+    var sizes = [];
+    
+    if(drawing)
+    {
+        positions.concat(drawing.geometry.attributes.position.array);
+        colors.concat(drawing.geometry.attributes.color.array);
+        sizes.concat(drawing.geometry.attributes.size.array);
+        // if(sceneDraw.getObjectByName("line")) sceneDraw.remove(sceneDraw.getObjectByName("line"));
+    }
+    
+    var particlePerPoint = 20;
+    var color = new THREE.Color();
+    for (var i = 0; i < particlePerPoint; i += 1) {
+        positions.push(mouseCoordinates.x + (Math.random() * 10.0 - 5.0));
+        positions.push(mouseCoordinates.y + (Math.random() * 10.0 - 5.0));
+        positions.push(mouseCoordinates.z + (Math.random() * 10.0));
+
+        color.setHex(Math.random() * 0xFFFFFF);
+
+        colors.push(color.r, color.g, color.b);
+        
+        sizes.push( Math.random() * 10 + 10 );
+        
+	}
+    lineGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
+    lineGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
+    lineGeometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
+ 
+    var lineParticle = new THREE.Points( lineGeometry, shaderMaterial );
+    lineParticle.name = "line";
+    sceneDraw.add(lineParticle);
+    drawing = lineParticle;
+}
+//
+
 function getMouseCoordinates(){
     var mouse = new THREE.Vector3();
     mouse.set(
@@ -205,18 +243,11 @@ function getMouseCoordinates(){
 function mousePressed(){
     var lineGeometry = new THREE.Geometry();
     lineGeometry.vertices.push(mouseCoordinates);
-    var line = new THREE.Line(lineGeometry, lineMaterial);
-    sceneDraw.add(line);
-    drawing = line; 
+    createLine();
 }
 
 function mouseDragged(){
-    var line = drawing;
-    var prevLineGeometry = line.geometry;
-    var newLineGeometry = new THREE.Geometry();
-    newLineGeometry.vertices = prevLineGeometry.vertices;
-    newLineGeometry.vertices.push(mouseCoordinates);
-    line.geometry = newLineGeometry;
+    createLine();
 }
 
 function mouseReleased(){
@@ -249,7 +280,6 @@ function render() {
         sizes[ i ] = 5 * ( 1 + Math.sin( 0.1 * i + time ) ) + 5;
     }
 
-    // console.log(destination);
     var particle = geometry.attributes.position.array;
     var speedidx = 0;
     for ( var i = 0; i < particles*3; i += 3 ) {
@@ -264,10 +294,19 @@ function render() {
 
     renderer.render( sceneParticles, camera );
 
-
     if(drawing){
         renderer.autoClear = false;
         renderer.render(sceneDraw, camera);
+        
+        var lsizes = drawing.geometry.attributes.size.array;
+        for ( var i = 0; i < particles*3; i ++ ) {
+            
+            // lsizes[ i ] = 5 * ( 1 + Math.sin( 0.1 * i + time ) ) + 5;
+        }
+
+        // drawing.geometry.attributes.position.needsUpdate = true;
+        // drawing.geometry.attributes.color.needsUpdate = true;
+        // drawing.geometry.attributes.size.needsUpdate = true;
     }
     
 }
