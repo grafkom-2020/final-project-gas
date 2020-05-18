@@ -9,7 +9,9 @@ var image, imgdata, imgw, imgh;
 var destination = [];
 var speed = [];
 
-var mouseIsPressed, mouseCoordinates, lineMaterial, drawing;
+var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingBasic, drawingPoint;
+
+var gui, parameters;
 
 function getParticleTexture() {
     var partCanvas = document.createElement('canvas');
@@ -175,32 +177,64 @@ async function init() {
 		mouseReleased(); 
 	});
 
-    drawSetup();
-}
+    gui = new dat.GUI();
+    parameters = {
+        color: "#ffffff",
+        material: "Point"
+    };
+    lineColor = "#ffffff";
 
-function drawSetup(){
-    lineMaterial = new THREE.LineBasicMaterial({
-        color:0xffffff,
-        linewidth : 4
+    var colorChange = gui.addColor(parameters, 'color').name('Line color').listen();
+    colorChange.onChange(function(value){
+        lineColor = value;
     });
+    var materialChange = gui.add(parameters, 'material', ["Basic", "Point"]).name('Line material').listen();
+    materialChange.onChange(function(value){
+        if(value == "Basic"){
+            lineMode = "Basic";
+        }
+        else{
+            lineMode = "Point";
+        }
+    });
+    gui.open();
 }
 
-//
-function createLine(){
+function createLineBasic(){
+    var lineGeometry = new THREE.Geometry();
+    lineGeometry.vertices.push(mouseCoordinates);
+    var lineMaterial = new THREE.LineBasicMaterial({
+        color: lineColor
+    }); 
+    var line = new THREE.Line(lineGeometry, lineMaterial);
+    sceneDraw.add(line);
+    drawingBasic = line;
+}
+
+function continueLineBasic(){
+    var line = drawingBasic;
+    var prevLineGeometry = line.geometry;
+    var newLineGeometry = new THREE.Geometry();
+    newLineGeometry.vertices = prevLineGeometry.vertices;
+    newLineGeometry.vertices.push(mouseCoordinates);
+    line.geometry = newLineGeometry;
+}
+
+function createLinePoint(){
     var lineGeometry = new THREE.BufferGeometry();
     
     var positions = [];
     var colors = [];
     var sizes = [];
     
-    if(drawing)
+    if(drawingPoint)
     {
-        positions.concat(drawing.geometry.attributes.position.array);
-        colors.concat(drawing.geometry.attributes.color.array);
-        sizes.concat(drawing.geometry.attributes.size.array);
-        // if(sceneDraw.getObjectByName("line")) sceneDraw.remove(sceneDraw.getObjectByName("line"));
+        positions = Array.prototype.slice.call(drawingPoint.geometry.attributes.position.array);
+        colors = Array.prototype.slice.call(drawingPoint.geometry.attributes.color.array);
+        sizes = Array.prototype.slice.call(drawingPoint.geometry.attributes.size.array);
+
+        if(sceneDraw.getObjectByName("line")) sceneDraw.remove(sceneDraw.getObjectByName("line"));
     }
-    
     var particlePerPoint = 20;
     var color = new THREE.Color();
     for (var i = 0; i < particlePerPoint; i += 1) {
@@ -208,8 +242,7 @@ function createLine(){
         positions.push(mouseCoordinates.y + (Math.random() * 10.0 - 5.0));
         positions.push(mouseCoordinates.z + (Math.random() * 10.0));
 
-        color.setHex(Math.random() * 0xFFFFFF);
-
+        color.setHSL(Math.random() * 360, 1.0, 0.5);
         colors.push(color.r, color.g, color.b);
         
         sizes.push( Math.random() * 10 + 10 );
@@ -222,9 +255,8 @@ function createLine(){
     var lineParticle = new THREE.Points( lineGeometry, shaderMaterial );
     lineParticle.name = "line";
     sceneDraw.add(lineParticle);
-    drawing = lineParticle;
+    drawingPoint = lineParticle;
 }
-//
 
 function getMouseCoordinates(){
     var mouse = new THREE.Vector3();
@@ -241,17 +273,25 @@ function getMouseCoordinates(){
 }
 
 function mousePressed(){
-    var lineGeometry = new THREE.Geometry();
-    lineGeometry.vertices.push(mouseCoordinates);
-    createLine();
+    if(lineMode == "Basic"){
+        createLineBasic();
+    }
+    else{
+        createLinePoint();
+    }
+    
 }
 
 function mouseDragged(){
-    createLine();
+    if(lineMode == "Basic"){
+        continueLineBasic();
+    }
+    else{
+        createLinePoint();
+    }
 }
 
 function mouseReleased(){
-
 }
 
 
@@ -294,19 +334,17 @@ function render() {
 
     renderer.render( sceneParticles, camera );
 
-    if(drawing){
+    if(drawingPoint || drawingBasic){
         renderer.autoClear = false;
         renderer.render(sceneDraw, camera);
         
-        var lsizes = drawing.geometry.attributes.size.array;
+        var lsizes = drawingPoint.geometry.attributes.size.array;
         for ( var i = 0; i < particles*3; i ++ ) {
-            
-            // lsizes[ i ] = 5 * ( 1 + Math.sin( 0.1 * i + time ) ) + 5;
+            lsizes[ i ] = 10 * ( 1 + Math.sin( 0.1 * i + time ) ) + 10;
         }
+        drawingPoint.geometry.attributes.position.needsUpdate = true;
+        drawingPoint.geometry.attributes.color.needsUpdate = true;
+        drawingPoint.geometry.attributes.size.needsUpdate = true;
 
-        // drawing.geometry.attributes.position.needsUpdate = true;
-        // drawing.geometry.attributes.color.needsUpdate = true;
-        // drawing.geometry.attributes.size.needsUpdate = true;
     }
-    
 }
