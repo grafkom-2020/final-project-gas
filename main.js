@@ -1,246 +1,149 @@
 var renderer, sceneParticles, sceneDraw, camera, stats;
+// var isAnimating = false;
 
-var particleSystem, uniforms, geometry, shaderMaterial;
-
-var particles;
-
-var image, imgdata, imgw, imgh, imgsrc;
-
-var destination = [];
-var speed = [];
-
-var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingSolid, drawingPoint, rainbow, offset;
-
-var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingBasic, drawingPoint;
+var mouseIsPressed, offset;
 var realFileBtn, customBtn, customTxt, submitBtn;
-var renderflag = false;
 var gui, parameters;
+
 init();
 
 async function init() {
+	// basic three init
+	sceneParticles = new THREE.Scene();
+	await PARTICLES.init(sceneParticles);
+	LINES.init();
+	camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 10000 );
+	camera.position.z = 300;
 
-    // image load buttons
-    realFileBtn = document.getElementById("real-file");
-    customBtn = document.getElementById("custom-button");
-    customTxt = document.getElementById("custom-text");
-    submitBtn = document.getElementById("submit-btn");
+	renderer = new THREE.WebGLRenderer();
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	
+	var container = document.getElementById( 'container' );
+	container.appendChild( renderer.domElement );
+	
+	window.addEventListener( 'resize', onWindowResize, false );
 
-    offset = customBtn.getBoundingClientRect().height;
+	// second scene, allow user to draw
+	sceneDraw = new THREE.Scene();
+	mouseIsPressed = false;
 
-    customBtn.addEventListener("click", function() {
-        realFileBtn.click();
-    });
-
-    realFileBtn.addEventListener("change", function() {
-        if (realFileBtn.value) {
-            customTxt.innerHTML = realFileBtn.value.match(
-            /[\/\\]([\w\d\s\.\-\(\)]+)$/
-            )[1];
-            submitBtn.style.display = "inline";
-        } else {
-            customTxt.innerHTML = "No file chosen, yet.";
-            submitBtn.style.display = "none";
-        }
-
-    });
-
-    submitBtn.addEventListener("click", function(){
-        drawImageParticles();
-    });
-    
-    // basic three init
-    camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 10000 );
-    camera.position.z = 300;
-
-    sceneParticles = new THREE.Scene();
-    
-    uniforms = {
-        
-        pointTexture: { value: new THREE.TextureLoader().load( "./assets/spark1.png" ) },
-        uDepth: {value: 2.0}
-        
-    };
-    
-    shaderMaterial = new THREE.ShaderMaterial( {
-        
-        uniforms: uniforms,
-        vertexShader: document.getElementById( 'vertexshader' ).textContent,
-        fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
-        
-        blending: THREE.AdditiveBlending,
-        depthTest: false,
-        transparent: true,
-        vertexColors: true
-        
-    } );
-
-    const prom = new Promise(resolve => {drawImageParticles(); resolve()});
-    await prom;
-
-    renderer = new THREE.WebGLRenderer();
-    renderer.setPixelRatio( window.devicePixelRatio );
-    renderer.setSize( window.innerWidth, window.innerHeight );
-    
-    var container = document.getElementById( 'container' );
-    container.appendChild( renderer.domElement );
-    
-    window.addEventListener( 'resize', onWindowResize, false );
-
-    // second scene, allow user to draw
-    sceneDraw = new THREE.Scene();
-    mouseIsPressed = false;
-
-    renderer.domElement.addEventListener('mousedown', function (){
-        getMouseCoordinates();
-        mouseIsPressed = true;
-        mousePressed();
-    });
-    renderer.domElement.addEventListener('mousemove', function(){
-        getMouseCoordinates();
-        if(mouseIsPressed){
-            mouseDragged();
-        }
-    });
-    renderer.domElement.addEventListener ( 'mouseup', function () { 
+	renderer.domElement.addEventListener('mousedown', function (){
+		mouseCoordinates = getMouseCoordinates();
+		mouseIsPressed = true;
+		LINES.mousePressed(mouseCoordinates);
+		mousePressed();
+	});
+	renderer.domElement.addEventListener('mousemove', function(){
+		mouseCoordinates = getMouseCoordinates();
+		if(mouseIsPressed){
+			LINES.mouseDragged(mouseCoordinates);
+			mouseDragged();
+		}
+	});
+	renderer.domElement.addEventListener ( 'mouseup', function () { 
 		mouseIsPressed = false; 
 		mouseReleased(); 
 	});
 
-    // UI BOX
-    gui = new dat.GUI();
-    parameters = {
-        color: "#ffffff",
-        material: "Point",
-        random: true
-    };
-    lineColor = parameters.color;
+	/* UI Start */
+	/* image load buttons */
+	realFileBtn = document.getElementById("real-file");
+	customBtn = document.getElementById("custom-button");
+	customTxt = document.getElementById("custom-text");
+	submitBtn = document.getElementById("submit-btn");
 
-    rainbow = true;
-    var colorChange = gui.addColor(parameters, 'color').name('Line color').listen();
-    colorChange.onChange(function(value){
-        lineColor = value;
-    });
-    var materialChange = gui.add(parameters, 'material', ["Basic", "Point"]).name('Line material').listen();
-    materialChange.onChange(function(value){
-        if(value == "Basic"){
-            lineMode = "Basic";
-        }
-        else{
-            lineMode = "Point";
-        }
-    });
-    var randomColor = gui.add(parameters, 'random').name('Random Color').listen();
-    randomColor.onChange(function(value){
-        rainbow = !rainbow;
-    });
-    gui.open();
-}
+	offset = customBtn.getBoundingClientRect().height;
 
-function createLineBasic(){
-    var lineGeometry = new THREE.Geometry();
-    lineGeometry.vertices.push(mouseCoordinates);
-    if(rainbow){
-        var lineMaterial = new THREE.LineBasicMaterial({
-            vertexColors: THREE.VertexColors
-        }); 
-    }
-    else{
-        var lineMaterial = new THREE.LineBasicMaterial({
-            color: lineColor
-        }); 
-    }
-    var lineSolid = new THREE.Line( lineGeometry, lineMaterial );
-    sceneDraw.add(lineSolid);
-    drawingSolid = lineSolid;
-}
+	customBtn.addEventListener("click", function() {
+		realFileBtn.click();
+	});
 
-function continueLineBasic(){
-    var lineSolid = drawingSolid;
-    var newLineGeometry = new THREE.Geometry();
-    newLineGeometry.vertices = lineSolid.geometry.vertices;
-    newLineGeometry.vertices.push(mouseCoordinates);
-    if(rainbow){
-        for(var i=0; i<newLineGeometry.vertices.length; i++) {
-            newLineGeometry.colors[i] = new THREE.Color(Math.random(), Math.random(), Math.random());   
-        }
-    }
-    lineSolid.geometry = newLineGeometry;
-}
+	realFileBtn.addEventListener("change", function() {
+		if (realFileBtn.value) {
+			customTxt.innerHTML = realFileBtn.value.match(
+			/[\/\\]([\w\d\s\.\-\(\)]+)$/
+			)[1];
+			submitBtn.style.display = "inline";
+		} else {
+			customTxt.innerHTML = "No file chosen, yet.";
+			submitBtn.style.display = "none";
+		}
 
-function createLinePoint(){
-    var lineGeometry = new THREE.BufferGeometry();
-    
-    var positions = [];
-    var colors = [];
-    var sizes = [];
-    
-    if(drawingPoint)
-    {
-        positions = Array.prototype.slice.call(drawingPoint.geometry.attributes.position.array);
-        colors = Array.prototype.slice.call(drawingPoint.geometry.attributes.color.array);
-        sizes = Array.prototype.slice.call(drawingPoint.geometry.attributes.size.array);
+	});
 
-        if(sceneDraw.getObjectByName("line")) sceneDraw.remove(sceneDraw.getObjectByName("line"));
-    }
-    var particlePerPoint = 20;
-    var color = new THREE.Color();
-    for (var i = 0; i < particlePerPoint; i += 1) {
-        positions.push(mouseCoordinates.x + (Math.random() * 10.0 - 5.0));
-        positions.push(mouseCoordinates.y + (Math.random() * 10.0 - 5.0));
-        positions.push(mouseCoordinates.z + (Math.random() * 10.0));
+	submitBtn.addEventListener("click", function(){
+		if (realFileBtn.value) {
+			PARTICLES.changeImageSrc(realFileBtn.files[0]);
+		}
+	});
+	
+	// UI BOX
+	gui = new dat.GUI();
+	parameters = {
+		threshold: 1.35,
+		particleColor: "#ffffff",
+		color: "#ffffff",
+		material: "Point",
+		random: true
+	};
 
-        if(rainbow){
-            color.setHSL(Math.random() * 360, 1.0, 0.5);
-            colors.push(color.r, color.g, color.b);
-        }
-        else{
-            color.setHex(lineColor.replace("#", "0x"));
-            colors.push(color.r, color.g, color.b);
-        } 
-        sizes.push( Math.random() * 10 + 10 );
-        
-	}
-    lineGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
-    lineGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
-    lineGeometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
- 
-    var lineParticle = new THREE.Points( lineGeometry, shaderMaterial );
-    lineParticle.name = "line";
-    sceneDraw.add(lineParticle);
-    drawingPoint = lineParticle;
+	LINES.changeLineColor(parameters.color);
+	rainbow = true;
+
+	var particleThresholdChange = gui.add(parameters, 'threshold', 0, 2).name('Particle threshold').listen();
+	particleThresholdChange.onChange(function(value){
+		PARTICLES.changeTreshold(value);
+	});
+
+	var particleColorChange = gui.addColor(parameters, 'particleColor').name('Particle color').listen();
+	particleColorChange.onChange(function(value){
+		PARTICLES.changeParticleColor(value);
+	});
+
+
+	var colorChange = gui.addColor(parameters, 'color').name('Line color').listen();
+	colorChange.onChange(function(value){
+		LINES.changeLineColor(value);
+	});
+
+	var materialChange = gui.add(parameters, 'material', ["Basic", "Point"]).name('Line material').listen();
+	materialChange.onChange(function(value){
+		if(value == "Basic") {
+			LINES.changeLineMode("Basic");
+		} else{
+			LINES.changeLineMode("Point");
+		}
+	});
+
+	var randomColor = gui.add(parameters, 'random').name('Random Color').listen();
+	randomColor.onChange(function(value){
+		LINES.toggleRainbowOption();
+	});
+	gui.open();
+
+	animate();
 }
 
 function getMouseCoordinates(){
-    var mouse = new THREE.Vector3();
-    mouse.set(
-        ( event.clientX / window.innerWidth ) * 2 - 1,
-        - ( (event.clientY - offset) / window.innerHeight ) * 2 + 1,
-        0.5 );
-    mouse.unproject(camera);
-    mouse.sub(camera.position).normalize();
-    var distance = (-200 - camera.position.z) / mouse.z;
+	var mouse = new THREE.Vector3();
+	mouse.set(
+		( event.clientX / window.innerWidth ) * 2 - 1,
+		- ( (event.clientY - offset) / window.innerHeight ) * 2 + 1,
+		0.5 );
+	mouse.unproject(camera);
+	mouse.sub(camera.position).normalize();
+	var distance = (-200 - camera.position.z) / mouse.z;
 
-    mouseCoordinates = new THREE.Vector3();
-    mouseCoordinates.copy(camera.position).add(mouse.multiplyScalar(distance));
+	mouseCoordinates = new THREE.Vector3();
+	mouseCoordinates.copy(camera.position).add(mouse.multiplyScalar(distance));
+	return mouseCoordinates;
 }
 
 function mousePressed(){
-    if(lineMode == "Basic"){
-        createLineBasic();
-    }
-    else{
-        createLinePoint();
-    }
-    
 }
 
 function mouseDragged(){
-    if(lineMode == "Basic"){
-        continueLineBasic();
-    }
-    else{
-        createLinePoint();
-    }
 }
 
 function mouseReleased(){
@@ -248,150 +151,19 @@ function mouseReleased(){
 
 
 function onWindowResize() {
-    
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    
-    renderer.setSize( window.innerWidth, window.innerHeight );
-    
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+	renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
 function animate() {
-    requestAnimationFrame( animate );
-    render();
+	requestAnimationFrame( animate );
+	render();
 }
 
 function render() {
-    renderflag = true;
-    var time = Date.now() * 0.001;
-    
-    var sizes = geometry.attributes.size.array;
-    for ( var i = 0; i < particles*3; i ++ ) {
-        
-        sizes[ i ] = 5 * ( 1 + Math.sin( 0.1 * i + time ) ) + 5;
-    }
-
-    var particle = geometry.attributes.position.array;
-    var speedidx = 0;
-    for ( var i = 0; i < particles*3; i += 3 ) {
-        particle[ i ] += (destination[i] - particle[i]) * speed[speedidx];
-        particle[ i+1 ] += (destination[i+1] - particle[i+1]) * speed[speedidx];
-        particle[ i+2 ] += (destination[i+2] - particle[i+2]) * speed[speedidx];
-        speedidx++;
-    }
-    
-    geometry.attributes.size.needsUpdate = true;
-    geometry.attributes.position.needsUpdate = true; 
-
-    renderer.render( sceneParticles, camera );
-
-    if(drawingSolid || drawingPoint){
-        renderer.autoClear = false;
-        renderer.render(sceneDraw, camera);
-        
-        if(drawingPoint){
-            var lsizes = drawingPoint.geometry.attributes.size.array;
-            for ( var i = 0; i < particles*3; i ++ ) {
-                lsizes[ i ] = 10 * ( 1 + Math.sin( 0.1 * i + time ) ) + 10;
-            }
-            drawingPoint.geometry.attributes.position.needsUpdate = true;
-            drawingPoint.geometry.attributes.color.needsUpdate = true;
-            drawingPoint.geometry.attributes.size.needsUpdate = true;
-        }
-    }
+	renderer.render( sceneParticles, camera );
+	PARTICLES.render();
+	LINES.render();
 }
 
-async function drawImageParticles(){
-    if(sceneParticles.getObjectByName("particleSystem")) sceneParticles.remove(sceneParticles.getObjectByName("particleSystem"));
-    var threshold = 0;
-    // f is ration/constant of real image to particle/pixelized version
-    var f = 1; 
-    var promises = [];
-    var p1 = new Promise(resolve => {
-        image = new Image();
-        if(realFileBtn.value)
-            image.src = URL.createObjectURL(realFileBtn.files[0]);
-        else
-            // image.src = "./assets/uno.jpg";
-            // image.src = "./assets/uno small.jpg";
-            // image.src = "./assets/doggo.jpg";
-            image.src = "./assets/doggo1.jpg";
-            // image.src = "./assets/doggo2.jpg";
-        image.onload = function() {
-            
-            f = Math.floor(image.height / 180.0);
-            if(document.getElementById("canvas")) document.getElementById("canvas").remove();
-            var canvas = document.createElement("canvas");
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            var ctx = canvas.getContext("2d");
-
-            imgw = image.width / f;
-            imgh = image.height / f;
-            ctx.drawImage(image, 0, 0, imgw, imgh);
-            imgdata = ctx.getImageData(0, 0, imgw, imgh);
-            var pixels = imgdata.data;
-            
-            for (var i = 0, n = pixels.length; i < n; i += 4) {
-                // Skip pixels, only process pixels that needs to be processed
-                var grayscale = 0.21 * pixels[i] + 0.71 * pixels[i+1] + 0.07 * pixels[1+2];
-                pixels[i  ] = grayscale;        // red
-                pixels[i+1] = grayscale;        // green
-                pixels[i+2] = grayscale;        // blue
-                threshold += pixels[i];
-            }
-            resolve();
-        }
-
-    })
-    await p1;
-
-    var p2 = new Promise(resolve => {
-        geometry = new THREE.BufferGeometry();
-        
-        var positions = [];
-        var colors = [];
-        var sizes = [];
-        destination = [];
-        speed = [];
-        
-        particles = imgdata.height * imgdata.width;
-        threshold /= particles;
-        threshold *= 1.35;
-        var color = new THREE.Color();
-        for (var y = 0, y2 = imgdata.height; y < y2; y += 1) {
-            for (var x = 0, x2 = imgdata.width; x < x2; x += 1) {
-                if (imgdata.data[(x * 4 + y * 4 * imgdata.width)] >= threshold) {
-                    positions.push(Math.random() * 1000 - 500);
-                    positions.push(Math.random() * 1000 - 500);
-                    positions.push(-Math.random() * 500);
-    
-                    destination.push(x - imgdata.width / 2);
-                    destination.push(-y + imgdata.height / 2);
-                    destination.push((Math.random() * 2 - 1)* 10);
-    
-                    speed.push(Math.random() / 10 + 0.05);
-    
-                    color.setHex(0xFFFFFF);
-            
-                    colors.push(color.r, color.g, color.b);
-                    
-                    sizes.push( Math.random() * 5 + 5 );
-                    
-                }
-            }
-        }
-        geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
-        geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
-        geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( sizes, 1 ).setUsage( THREE.DynamicDrawUsage ) );
-        
-        particleSystem = new THREE.Points( geometry, shaderMaterial );
-        particleSystem.name = "particleSystem";
-        
-        sceneParticles.add( particleSystem );
-        resolve();
-    })
-
-    await p2;
-    if(!renderflag)animate();
-}
