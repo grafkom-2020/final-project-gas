@@ -9,7 +9,7 @@ var image, imgdata, imgw, imgh;
 var destination = [];
 var speed = [];
 
-var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingBasic, drawingPoint;
+var mouseIsPressed, mouseCoordinates, lineColor, lineMode, drawingSolid, drawingPoint, rainbow;
 
 var gui, parameters;
 
@@ -175,14 +175,16 @@ async function init() {
 		mouseIsPressed = false; 
 		mouseReleased(); 
 	});
-
+    // UI BOX
     gui = new dat.GUI();
     parameters = {
         color: "#ffffff",
-        material: "Point"
+        material: "Point",
+        random: true
     };
-    lineColor = "#ffffff";
+    lineColor = parameters.color;
 
+    rainbow = true;
     var colorChange = gui.addColor(parameters, 'color').name('Line color').listen();
     colorChange.onChange(function(value){
         lineColor = value;
@@ -196,27 +198,42 @@ async function init() {
             lineMode = "Point";
         }
     });
+    var randomColor = gui.add(parameters, 'random').name('Random Color').listen();
+    randomColor.onChange(function(value){
+        rainbow = !rainbow;
+    });
     gui.open();
 }
 
 function createLineBasic(){
     var lineGeometry = new THREE.Geometry();
     lineGeometry.vertices.push(mouseCoordinates);
-    var lineMaterial = new THREE.LineBasicMaterial({
-        color: lineColor
-    }); 
-    var line = new THREE.Line(lineGeometry, lineMaterial);
-    sceneDraw.add(line);
-    drawingBasic = line;
+    if(rainbow){
+        var lineMaterial = new THREE.LineBasicMaterial({
+            vertexColors: THREE.VertexColors
+        }); 
+    }
+    else{
+        var lineMaterial = new THREE.LineBasicMaterial({
+            color: lineColor
+        }); 
+    }
+    var lineSolid = new THREE.Line( lineGeometry, lineMaterial );
+    sceneDraw.add(lineSolid);
+    drawingSolid = lineSolid;
 }
 
 function continueLineBasic(){
-    var line = drawingBasic;
-    var prevLineGeometry = line.geometry;
+    var lineSolid = drawingSolid;
     var newLineGeometry = new THREE.Geometry();
-    newLineGeometry.vertices = prevLineGeometry.vertices;
+    newLineGeometry.vertices = lineSolid.geometry.vertices;
     newLineGeometry.vertices.push(mouseCoordinates);
-    line.geometry = newLineGeometry;
+    if(rainbow){
+        for(var i=0; i<newLineGeometry.vertices.length; i++) {
+            newLineGeometry.colors[i] = new THREE.Color(Math.random(), Math.random(), Math.random());   
+        }
+    }
+    lineSolid.geometry = newLineGeometry;
 }
 
 function createLinePoint(){
@@ -241,8 +258,14 @@ function createLinePoint(){
         positions.push(mouseCoordinates.y + (Math.random() * 10.0 - 5.0));
         positions.push(mouseCoordinates.z + (Math.random() * 10.0));
 
-        color.setHSL(Math.random() * 360, 1.0, 0.5);
-        colors.push(color.r, color.g, color.b);
+        if(rainbow){
+            color.setHSL(Math.random() * 360, 1.0, 0.5);
+            colors.push(color.r, color.g, color.b);
+        }
+        else{
+            color.setHex(lineColor.replace("#", "0x"));
+            colors.push(color.r, color.g, color.b);
+        } 
         
         sizes.push( Math.random() * 10 + 10 );
         
@@ -333,18 +356,19 @@ function render() {
 
     renderer.render( sceneParticles, camera );
 
-    if(drawingPoint || drawingBasic){
+    if(drawingSolid || drawingPoint){
         renderer.autoClear = false;
         renderer.render(sceneDraw, camera);
         
-        var lsizes = drawingPoint.geometry.attributes.size.array;
-        for ( var i = 0; i < particles*3; i ++ ) {
-            lsizes[ i ] = 10 * ( 1 + Math.sin( 0.1 * i + time ) ) + 10;
+        if(drawingPoint){
+            var lsizes = drawingPoint.geometry.attributes.size.array;
+            for ( var i = 0; i < particles*3; i ++ ) {
+                lsizes[ i ] = 10 * ( 1 + Math.sin( 0.1 * i + time ) ) + 10;
+            }
+            drawingPoint.geometry.attributes.position.needsUpdate = true;
+            drawingPoint.geometry.attributes.color.needsUpdate = true;
+            drawingPoint.geometry.attributes.size.needsUpdate = true;
         }
-        drawingPoint.geometry.attributes.position.needsUpdate = true;
-        drawingPoint.geometry.attributes.color.needsUpdate = true;
-        drawingPoint.geometry.attributes.size.needsUpdate = true;
-
     }
 }
 
