@@ -1,4 +1,12 @@
 var renderer, sceneParticles, sceneDraw, camera, stats;
+var cameraInit = {
+	x: 0, 
+	y: 0, 
+	z: 0
+};
+var state = {
+	pressedKeys:[]
+};
 // var isAnimating = false;
 
 var mouseIsPressed, offset;
@@ -14,6 +22,9 @@ async function init() {
 	LINES.init();
 	camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 10000 );
 	camera.position.z = 300;
+	cameraInit.x = camera.position.x;
+	cameraInit.y = camera.position.y;
+	cameraInit.z = camera.position.z;
 
 	renderer = new THREE.WebGLRenderer();
 	renderer.setPixelRatio( window.devicePixelRatio );
@@ -23,26 +34,20 @@ async function init() {
 	container.appendChild( renderer.domElement );
 	
 	window.addEventListener( 'resize', onWindowResize, false );
+	document.onkeydown = keydown;
+	document.onkeyup = keyup;
 
 	// second scene, allow user to draw
 	sceneDraw = new THREE.Scene();
 	mouseIsPressed = false;
 
 	renderer.domElement.addEventListener('mousedown', function (){
-		mouseCoordinates = getMouseCoordinates();
-		mouseIsPressed = true;
-		LINES.mousePressed(mouseCoordinates);
 		mousePressed();
 	});
 	renderer.domElement.addEventListener('mousemove', function(){
-		mouseCoordinates = getMouseCoordinates();
-		if(mouseIsPressed){
-			LINES.mouseDragged(mouseCoordinates);
-			mouseDragged();
-		}
+		mouseDragged();
 	});
 	renderer.domElement.addEventListener ( 'mouseup', function () { 
-		mouseIsPressed = false; 
 		mouseReleased(); 
 	});
 
@@ -139,7 +144,7 @@ function getMouseCoordinates(){
 		0.5 );
 	mouse.unproject(camera);
 	mouse.sub(camera.position).normalize();
-	var distance = (-200 - camera.position.z) / mouse.z;
+	var distance = (-camera.position.z) / mouse.z;
 
 	mouseCoordinates = new THREE.Vector3();
 	mouseCoordinates.copy(camera.position).add(mouse.multiplyScalar(distance));
@@ -147,14 +152,56 @@ function getMouseCoordinates(){
 }
 
 function mousePressed(){
+	resetCameraCoords();
+	mouseCoordinates = getMouseCoordinates();
+	mouseIsPressed = true;
+	LINES.mousePressed(mouseCoordinates);
 }
 
 function mouseDragged(){
+	if(mouseIsPressed){
+		mouseCoordinates = getMouseCoordinates();
+		resetCameraCoords();
+		LINES.mouseDragged(mouseCoordinates);
+	}
 }
 
 function mouseReleased(){
+	resetCameraCoords();
+	mouseIsPressed = false; 
 }
 
+function keydown(event) {
+	state.pressedKeys[event.code] = true;
+}
+
+function keyup(event) {
+	state.pressedKeys[event.code] = false;
+}
+
+function resetCameraCoords() {
+	camera.position.x = cameraInit.x;	
+	camera.position.y = cameraInit.y;	
+	camera.position.z = cameraInit.z;	
+	camera.updateProjectionMatrix();
+}	
+
+function getKeyboardInput() {
+	var speed = 10;
+	if (state.pressedKeys["KeyA"]) { // left
+		camera.position.x -= speed;
+	} else if (state.pressedKeys["KeyD"]) { // right
+		camera.position.x += speed;
+	} else if (state.pressedKeys["KeyQ"]) { // down
+		camera.position.y -= speed;
+	} else if (state.pressedKeys["KeyE"]) { // up
+		camera.position.y += speed;
+	} else if (state.pressedKeys["KeyW"]) { // forward
+		camera.position.z -= speed;
+	} else if (state.pressedKeys["KeyS"]) { // backward
+		camera.position.z += speed;
+	}
+}
 
 function onWindowResize() {
 	camera.aspect = window.innerWidth / window.innerHeight;
@@ -168,6 +215,11 @@ function animate() {
 }
 
 function render() {
+	getKeyboardInput();
+	// camera.position.x = ( cameraOffset.x );
+	// camera.position.y = ( cameraOffset.y );
+	// camera.position.z = ( cameraOffset.z );
+	camera.lookAt( sceneParticles.position );
 	renderer.render( sceneParticles, camera );
 	PARTICLES.render();
 	LINES.render();
