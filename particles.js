@@ -5,7 +5,15 @@
 }(this, (function (exports) {
 	var sceneParticles;
 
-	var newParticleColors = false, tresholdMultiplierDefault = 1.35, newTresholdMultiplier;
+	var inColor = {
+		isUpdate: true,
+		isRainbow: false,
+		hex: 0xFFFFFF
+	};
+	var inThreshold = {
+		default: 1.35, 
+		new: undefined
+	};
 	var particleSystem, uniforms, geometry, shaderMaterial;
 	var userImageInput, image, imgdata, imgw, imgh;
 
@@ -58,17 +66,20 @@
     geometry.attributes.size.needsUpdate = true;
     geometry.attributes.position.needsUpdate = true; 
 
-    if (newParticleColors) {
+    if (inColor.isUpdate) {
 			var color = geometry.attributes.color.array;
 			
 			let newColor = new THREE.Color();
-			newColor.setHex(newParticleColors.replace("#", "0x"));
+			newColor.setHex(inColor.hex);
 			for ( var i = 0; i < color.length; i += 3 ) {
+				if (inColor.isRainbow) {	
+					newColor.setHSL(Math.random() * 360, 1.0, 0.5);
+				}
 				color[i] = newColor.r
 				color[i+1] = newColor.g
 				color[i+2] = newColor.b;
 			}
-			newParticleColors = undefined;
+			inColor.isUpdate = false;
 			geometry.attributes.color.needsUpdate = true;
     }
 	}
@@ -136,11 +147,11 @@
 			
 			totPixel = imgdata.height * imgdata.width;
 			threshold /= totPixel;
-			if (newTresholdMultiplier) {
-				threshold *= newTresholdMultiplier;
-				newTresholdMultiplier = undefined;
+			if (inThreshold.new) {
+				threshold *= inThreshold.new;
+				inThreshold.new = undefined;
 			} else {
-				threshold *= tresholdMultiplierDefault;
+				threshold *= inThreshold.default;
 			}
 				
 			var color = new THREE.Color();
@@ -156,8 +167,12 @@
 						destination.push((Math.random() * 2 - 1)* 10);
 		
 						speed.push(Math.random() / 10 + 0.05);
-		
-						color.setHex(0xFFFFFF);
+						
+						if (inColor.isRainbow) {
+							color.setHSL(Math.random() * 360, 1.0, 0.5);
+						} else {
+							color.setHex(inColor.hex);
+						}
 				
 						colors.push(color.r, color.g, color.b);
 						
@@ -186,12 +201,18 @@
 	}
 
 	function changeParticleColor(inNewColor) {
-		newParticleColors = inNewColor;
+		inColor.hex = inNewColor.replace("#", "0x");
+		inColor.isUpdate = true;
 	}
 
 	function changeTreshold(inTresholdMultiplier) {
-		newTresholdMultiplier = inTresholdMultiplier;
+		inThreshold.new = inTresholdMultiplier;
 		drawImageParticles();
+	}
+
+	function toggleRainbow() {
+		inColor.isRainbow = !inColor.isRainbow;
+		inColor.isUpdate = true;
 	}
 	
 	exports.init = init;
@@ -200,4 +221,5 @@
 	exports.changeImageSrc = changeImageSrc;
 	exports.changeParticleColor = changeParticleColor;
 	exports.changeTreshold = changeTreshold;
+	exports.toggleRainbow = toggleRainbow;
 })));

@@ -82,6 +82,7 @@ async function init() {
 	gui = new dat.GUI();
 	parameters = {
 		threshold: 1.35,
+		particleRainbow: false,
 		particleColor: "#ffffff",
 		color: "#ffffff",
 		material: "Point",
@@ -94,6 +95,11 @@ async function init() {
 	var particleThresholdChange = gui.add(parameters, 'threshold', 0, 2).name('Particle threshold').listen();
 	particleThresholdChange.onChange(function(value){
 		PARTICLES.changeTreshold(value);
+	});
+
+	var particleRainbowChange = gui.add(parameters, 'particleRainbow').name('Particle Rainbow').listen();
+	particleRainbowChange.onChange(function(value){
+		PARTICLES.toggleRainbow();
 	});
 
 	var particleColorChange = gui.addColor(parameters, 'particleColor').name('Particle color').listen();
